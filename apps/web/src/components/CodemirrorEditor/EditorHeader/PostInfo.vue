@@ -2,9 +2,10 @@
 import { Info, Upload } from 'lucide-vue-next'
 import { toast } from 'vue-sonner'
 import { useStore } from '@/stores'
+import { processClipboardContent } from '@/utils'
 
 const store = useStore()
-const { output } = storeToRefs(store)
+const { output, primaryColor } = storeToRefs(store)
 
 const dialogVisible = ref(false)
 const publishing = ref(false)
@@ -85,7 +86,13 @@ async function prePost() {
 
     form.value.desc = document.querySelector(`#output p`)?.textContent?.trim() ?? ``
 
-    form.value.content = output.value
+    // 处理内容样式（与复制功能保持一致）
+    await processClipboardContent(primaryColor.value)
+    const clipboardDiv = document.getElementById(`output`)!
+    form.value.content = clipboardDiv.innerHTML
+
+    // 恢复原始内容
+    clipboardDiv.innerHTML = output.value
   }
   catch (error) {
     console.log(`error`, error)
