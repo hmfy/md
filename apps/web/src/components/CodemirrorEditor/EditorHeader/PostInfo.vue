@@ -461,7 +461,7 @@ function onUpdate(val: boolean) {
               for="publishToOfficial"
               class="text-sm font-medium leading-none cursor-pointer select-none"
             >
-              直接发布到公众号（不勾选则仅保存为草稿）
+              直接发布到公众号（不勾选则仅保存为草稿，个人账号无发布接口权限）
             </label>
           </div>
         </div>

@@ -147,6 +147,7 @@ async function copy() {
     <div class="space-x-2 flex flex-wrap items-center">
       <!-- 复制按钮组 -->
       <div
+        v-if="false"
         class="bg-background space-x-1 text-background-foreground flex items-center border rounded-md"
       >
         <Button variant="ghost" class="shadow-none text-sm px-2 md:px-4" @click="copy">
