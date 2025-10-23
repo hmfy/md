@@ -12,7 +12,8 @@ import { VitePWA } from 'vite-plugin-pwa'
 import { VitePluginRadar } from 'vite-plugin-radar'
 import vueDevTools from 'vite-plugin-vue-devtools'
 
-const base = process.env.SERVER_ENV === `NETLIFY` ? `/` : `/md/`
+// const base = process.env.SERVER_ENV === `NETLIFY` ? `/` : `/md/`
+const base = `./`
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd())
