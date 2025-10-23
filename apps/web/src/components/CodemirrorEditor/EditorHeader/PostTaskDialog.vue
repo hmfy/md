@@ -17,12 +17,13 @@ const dialogVisible = computed({
 const taskStatus = ref<any>(null)
 const submitting = ref(false)
 
+interface Window { $syncer: any }
 async function startPost() {
   if (!props.post)
     return
 
   try {
-    window.$syncer?.addTask(
+    (window as unknown as Window).$syncer?.addTask(
       {
         post: {
           title: props.post.title,
