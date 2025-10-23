@@ -1,23 +1,29 @@
 <script setup lang="ts">
-import { Info, Upload } from 'lucide-vue-next'
+import { Info, Upload, X } from 'lucide-vue-next'
+import { CheckboxIndicator, CheckboxRoot } from 'radix-vue'
 import { toast } from 'vue-sonner'
 import { useStore } from '@/stores'
-import { processClipboardContent } from '@/utils'
+import { addPrefix, processClipboardContent } from '@/utils'
 
 const store = useStore()
 const { output, primaryColor } = storeToRefs(store)
 
 const dialogVisible = ref(false)
 const publishing = ref(false)
-const publishStep = ref<`` | `token` | `upload` | `draft` | `success` | `error`>(``)
+const publishStep = ref<`` | `token` | `upload` | `draft` | `publish` | `success` | `error`>(``)
 const publishMessage = ref(``)
+const draftMediaId = ref(``)
 
+// 是否发布到公众号（使用 useStorage 存储）
+const publishToOfficialChecked = useStorage(addPrefix(`wechat_publish_to_official`), false)
+
+// 从 localStorage 读取默认值
 const form = ref({
-  appId: ``,
-  appSecret: ``,
+  appId: useStorage(addPrefix(`wechat_appid`), ``).value,
+  appSecret: useStorage(addPrefix(`wechat_appsecret`), ``).value,
   title: ``,
   desc: ``,
-  author: ``,
+  author: useStorage(addPrefix(`wechat_author`), ``).value,
   thumbFile: null as File | null,
   thumbPreview: ``,
   content: ``,
@@ -84,7 +90,12 @@ async function prePost() {
       ?.textContent
       ?.trim() ?? ``
 
-    form.value.desc = document.querySelector(`#output p`)?.textContent?.trim() ?? ``
+    let desc = document.querySelector(`#output p`)?.textContent?.trim() ?? ``
+    // 限制摘要不超过 50 个字
+    if (desc.length > 50) {
+      desc = desc.slice(0, 50)
+    }
+    form.value.desc = desc
 
     // 处理内容样式（与复制功能保持一致）
     await processClipboardContent(primaryColor.value)
@@ -188,16 +199,22 @@ async function addDraft(accessToken: string, thumbMediaId: string): Promise<stri
   return data.media_id
 }
 
-// 发布到草稿
-async function publishToDraft() {
+// 统一发布函数
+async function publish() {
   if (!allowPublish.value)
     return
 
   publishing.value = true
   publishStep.value = ``
   publishMessage.value = ``
+  draftMediaId.value = ``
 
   try {
+    // 保存到 localStorage
+    localStorage.setItem(addPrefix(`wechat_appid`), form.value.appId)
+    localStorage.setItem(addPrefix(`wechat_appsecret`), form.value.appSecret)
+    localStorage.setItem(addPrefix(`wechat_author`), form.value.author)
+
     // 1. 获取 access_token
     const accessToken = await getAccessToken(form.value.appId, form.value.appSecret)
 
@@ -206,10 +223,41 @@ async function publishToDraft() {
 
     // 3. 新增草稿
     const mediaId = await addDraft(accessToken, thumbMediaId)
+    draftMediaId.value = mediaId
 
-    publishStep.value = `success`
-    publishMessage.value = `草稿创建成功！media_id: ${mediaId}`
-    toast.success(`草稿发布成功`)
+    // 4. 如果勾选了发布到公众号，继续执行发布
+    if (publishToOfficialChecked.value) {
+      publishStep.value = `publish`
+      publishMessage.value = `草稿创建成功，正在发布到公众号...`
+
+      const response = await fetch(
+        `/wechat/cgi-bin/freepublish/submit?access_token=${accessToken}`,
+        {
+          method: `POST`,
+          headers: {
+            'Content-Type': `application/json`,
+          },
+          body: JSON.stringify({
+            media_id: mediaId,
+          }),
+        },
+      )
+
+      const data = await response.json()
+
+      if (data.errcode && data.errcode !== 0) {
+        throw new Error(data.errmsg || `发布到公众号失败`)
+      }
+
+      publishStep.value = `success`
+      publishMessage.value = `发布任务已提交！publish_id: ${data.publish_id}，请稍后在公众号后台查看发布结果。`
+      toast.success(`已提交发布任务到公众号`)
+    }
+    else {
+      publishStep.value = `success`
+      publishMessage.value = `草稿创建成功！media_id: ${mediaId}`
+      toast.success(`草稿发布成功`)
+    }
   }
   catch (error: any) {
     publishStep.value = `error`
@@ -241,7 +289,7 @@ function onUpdate(val: boolean) {
         发布到微信
       </Button>
     </DialogTrigger>
-    <DialogContent class="max-w-2xl max-h-[90vh] overflow-y-auto">
+    <DialogContent class="max-w-3xl max-h-[95vh] overflow-y-auto">
       <DialogHeader>
         <DialogTitle>发布到微信公众号</DialogTitle>
       </DialogHeader>
@@ -324,13 +372,19 @@ function onUpdate(val: boolean) {
           <Label for="desc" class="w-24 text-end shrink-0 pt-2">
             摘要
           </Label>
-          <Textarea
-            id="desc"
-            v-model="form.desc"
-            placeholder="自动提取第一个段落"
-            rows="3"
-            :disabled="publishing"
-          />
+          <div class="flex-1">
+            <Textarea
+              id="desc"
+              v-model="form.desc"
+              placeholder="自动提取第一个段落（最多50字）"
+              rows="3"
+              :disabled="publishing"
+              maxlength="50"
+            />
+            <p class="text-xs text-muted-foreground mt-1">
+              {{ form.desc.length }}/50 字
+            </p>
+          </div>
         </div>
 
         <!-- 封面上传 -->
@@ -352,15 +406,14 @@ function onUpdate(val: boolean) {
                 alt="封面预览"
                 class="w-32 h-32 object-cover rounded border"
               >
-              <Button
-                variant="destructive"
-                size="sm"
-                class="absolute -top-2 -right-2"
+              <button
+                type="button"
+                class="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-gray-800 hover:bg-gray-700 text-white flex items-center justify-center"
                 :disabled="publishing"
                 @click="removeThumb"
               >
-                删除
-              </Button>
+                <X class="w-4 h-4" />
+              </button>
             </div>
             <Button
               v-else
@@ -376,17 +429,50 @@ function onUpdate(val: boolean) {
             </p>
           </div>
         </div>
+
+        <!-- 发布到公众号选项 -->
+        <div class="w-full flex items-center gap-4">
+          <Label class="w-24 text-end shrink-0">
+            发布选项
+          </Label>
+          <div class="flex items-center gap-2">
+            <CheckboxRoot
+              id="publishToOfficial"
+              v-model:checked="publishToOfficialChecked"
+              :disabled="publishing"
+              class="bg-background hover:bg-muted h-5 w-5 flex items-center justify-center border border-gray-300 rounded"
+            >
+              <CheckboxIndicator class="text-primary">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="3"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  class="h-4 w-4"
+                >
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              </CheckboxIndicator>
+            </CheckboxRoot>
+            <label
+              for="publishToOfficial"
+              class="text-sm font-medium leading-none cursor-pointer select-none"
+            >
+              直接发布到公众号（不勾选则仅保存为草稿）
+            </label>
+          </div>
+        </div>
       </div>
 
       <DialogFooter class="gap-2">
         <Button variant="outline" :disabled="publishing" @click="dialogVisible = false">
           取 消
         </Button>
-        <Button :disabled="!allowPublish" @click="publishToDraft">
-          {{ publishing ? '发布中...' : '发布草稿' }}
-        </Button>
-        <Button variant="secondary" disabled>
-          发布到公众号（待实现）
+        <Button :disabled="!allowPublish" @click="publish">
+          {{ publishing ? '发布中...' : '发布' }}
         </Button>
       </DialogFooter>
     </DialogContent>
