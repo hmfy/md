@@ -485,3 +485,66 @@ fail_idx 当发布状态为2或4时，返回不通过的文章编号，第一篇
 53503 该草稿未通过发布检查 检查下草稿信息
 53504 需前往公众平台官网使用草稿 需前往公众平台官网使用草稿
 53505 请手动保存成功后再发表 请前往公众平台官网手动保存成功后再发表
+
+# 上传图文消息图片
+
+调试诊断
+
+接口应在服务器端调用，不可在前端（小程序、网页、APP等）直接调用，具体可参考接口调用指南
+
+接口英文名：uploadImage
+
+本接口用于上传图文消息内所需的图片
+
+1. 调用方式
+   HTTPS 调用
+   POST https://api.weixin.qq.com/cgi-bin/media/uploadimg?access_token=ACCESS_TOKEN
+   云调用
+   调用方法：officialAccount.media.uploadImg
+
+出入参和 HTTPS 调用相同，调用方式可查看 云调用 说明文档
+
+第三方调用
+本接口支持第三方平台代商家调用。
+
+该接口所属的权限集 id 为：1、8-9、11、18、37、100
+
+服务商获得其中之一权限集授权后，可通过使用 authorizer_access_token 代商家进行调用，具体可查看 第三方调用 说明文档。
+
+2. 请求参数
+   查询参数 Query String parameters
+   参数名 类型 必填 说明
+   access_token string 是 接口调用凭证，可使用 access_token、authorizer_access_token
+   请求体 Request Payload
+   参数名 类型 必填 说明
+   media formdata 是 图片文件
+
+3. 返回参数
+   返回体 Response Payload
+   参数名 类型 说明
+   url string 图片URL
+   errcode number 错误码
+   errmsg string 错误描述
+
+4. 注意事项
+   该接口所上传的图片，不占用公众号的素材库中图片数量的100000个的限制，图片仅支持jpg/png格式，大小必须在1MB以下。
+   图文消息支持正文中插入自己账号和其他公众号已群发文章链接的能力。
+
+5. 代码示例
+   请求示例
+
+curl -F media=@test.jpg "https://api.weixin.qq.com/cgi-bin/media/uploadimg?access_token=ACCESS_TOKEN"
+返回示例
+
+{
+"url": "http://mmbiz.qpic.cn/XXXXX",
+"errcode": 0,
+"errmsg": "ok"
+}
+
+6. 错误码
+   以下是本接口的错误码列表，其他错误码可参考 通用错误码
+
+错误码 错误描述 解决方案
+40005 invalid file type 上传素材文件格式不对
+40009 invalid image size 图片尺寸太大

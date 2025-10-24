@@ -162,6 +162,113 @@ async function uploadMaterial(accessToken: string, file: File): Promise<string> 
   return data.media_id
 }
 
+// 上传图文消息内的图片（不占用素材库）
+async function uploadContentImage(accessToken: string, file: File): Promise<string> {
+  const formData = new FormData()
+  formData.append(`media`, file)
+
+  const response = await fetch(
+    `/wechat/cgi-bin/media/uploadimg?access_token=${accessToken}`,
+    {
+      method: `POST`,
+      body: formData,
+    },
+  )
+
+  const data = await response.json()
+
+  if (data.errcode && data.errcode !== 0) {
+    throw new Error(data.errmsg || `上传图片失败: ${data.errmsg}`)
+  }
+
+  return data.url
+}
+
+// 从URL下载图片并转换为File对象
+async function downloadImageAsFile(url: string): Promise<File> {
+  const response = await fetch(url)
+  if (!response.ok) {
+    throw new Error(`下载图片失败: ${response.statusText}`)
+  }
+
+  const blob = await response.blob()
+
+  // 从URL中提取文件名，如果没有则使用时间戳
+  const urlParts = url.split(`/`)
+  let filename = urlParts[urlParts.length - 1].split(`?`)[0] || `image_${Date.now()}.jpg`
+
+  // 确保文件名有扩展名
+  if (!filename.match(/\.(jpg|jpeg|png|gif|bmp)$/i)) {
+    // 根据 MIME 类型添加扩展名
+    const ext = blob.type.split(`/`)[1] || `jpg`
+    filename = `${filename}.${ext}`
+  }
+
+  return new File([blob], filename, { type: blob.type })
+}
+
+// 处理内容中的图片
+async function processContentImages(accessToken: string, htmlContent: string): Promise<string> {
+  publishStep.value = `upload`
+
+  // 创建一个临时 DOM 来解析 HTML
+  const parser = new DOMParser()
+  const doc = parser.parseFromString(htmlContent, `text/html`)
+  const images = doc.querySelectorAll(`img`)
+
+  if (images.length === 0) {
+    return htmlContent
+  }
+
+  publishMessage.value = `正在处理图片 (0/${images.length})...`
+
+  let processedCount = 0
+
+  // 处理每一个图片
+  for (const img of Array.from(images)) {
+    const src = img.getAttribute(`src`)
+
+    if (!src) {
+      continue
+    }
+
+    // 跳过已经是微信CDN的图片
+    if (src.includes(`mmbiz.qpic.cn`) || src.includes(`weixin.qq.com`)) {
+      processedCount++
+      publishMessage.value = `正在处理图片 (${processedCount}/${images.length})...`
+      continue
+    }
+
+    try {
+      // 下载图片
+      const imageFile = await downloadImageAsFile(src)
+
+      // 验证图片大小（微信要求小于1MB）
+      if (imageFile.size > 1024 * 1024) {
+        console.warn(`图片 ${src} 大小超过1MB (${(imageFile.size / 1024 / 1024).toFixed(2)}MB)，可能上传失败`)
+      }
+
+      // 上传到微信
+      const wechatUrl = await uploadContentImage(accessToken, imageFile)
+
+      // 替换图片URL
+      img.setAttribute(`src`, wechatUrl)
+
+      processedCount++
+      publishMessage.value = `正在处理图片 (${processedCount}/${images.length})...`
+    }
+    catch (error: any) {
+      console.error(`处理图片失败 (${src}):`, error)
+      // 继续处理其他图片，但记录错误
+      toast.warning(`图片 ${src.substring(0, 50)}... 上传失败，将保留原链接`)
+      processedCount++
+    }
+  }
+
+  // 返回处理后的HTML
+  return doc.body.innerHTML
+}
+
 // 新增草稿
 async function addDraft(accessToken: string, thumbMediaId: string): Promise<string> {
   publishStep.value = `draft`
@@ -221,11 +328,14 @@ async function publish() {
     // 2. 上传封面图片
     const thumbMediaId = await uploadMaterial(accessToken, form.value.thumbFile!)
 
-    // 3. 新增草稿
+    // 3. 处理内容中的图片，将外部图片上传到微信
+    form.value.content = await processContentImages(accessToken, form.value.content)
+
+    // 4. 新增草稿
     const mediaId = await addDraft(accessToken, thumbMediaId)
     draftMediaId.value = mediaId
 
-    // 4. 如果勾选了发布到公众号，继续执行发布
+    // 5. 如果勾选了发布到公众号，继续执行发布
     if (publishToOfficialChecked.value) {
       publishStep.value = `publish`
       publishMessage.value = `草稿创建成功，正在发布到公众号...`
@@ -317,12 +427,7 @@ function onUpdate(val: boolean) {
           <Label for="appId" class="w-24 text-end shrink-0">
             AppID
           </Label>
-          <Input
-            id="appId"
-            v-model="form.appId"
-            placeholder="请输入公众号 AppID"
-            :disabled="publishing"
-          />
+          <Input id="appId" v-model="form.appId" placeholder="请输入公众号 AppID" :disabled="publishing" />
         </div>
 
         <!-- AppSecret -->
@@ -331,10 +436,7 @@ function onUpdate(val: boolean) {
             AppSecret
           </Label>
           <Input
-            id="appSecret"
-            v-model="form.appSecret"
-            type="password"
-            placeholder="请输入公众号 AppSecret"
+            id="appSecret" v-model="form.appSecret" type="password" placeholder="请输入公众号 AppSecret"
             :disabled="publishing"
           />
         </div>
@@ -346,12 +448,7 @@ function onUpdate(val: boolean) {
           <Label for="title" class="w-24 text-end shrink-0">
             标题
           </Label>
-          <Input
-            id="title"
-            v-model="form.title"
-            placeholder="自动提取第一个标题"
-            :disabled="publishing"
-          />
+          <Input id="title" v-model="form.title" placeholder="自动提取第一个标题" :disabled="publishing" />
         </div>
 
         <!-- 作者 -->
@@ -359,12 +456,7 @@ function onUpdate(val: boolean) {
           <Label for="author" class="w-24 text-end shrink-0">
             作者
           </Label>
-          <Input
-            id="author"
-            v-model="form.author"
-            placeholder="可选"
-            :disabled="publishing"
-          />
+          <Input id="author" v-model="form.author" placeholder="可选" :disabled="publishing" />
         </div>
 
         <!-- 描述 -->
@@ -374,11 +466,7 @@ function onUpdate(val: boolean) {
           </Label>
           <div class="flex-1">
             <Textarea
-              id="desc"
-              v-model="form.desc"
-              placeholder="自动提取第一个段落（最多50字）"
-              rows="3"
-              :disabled="publishing"
+              id="desc" v-model="form.desc" placeholder="自动提取第一个段落（最多50字）" rows="3" :disabled="publishing"
               maxlength="50"
             />
             <p class="text-xs text-muted-foreground mt-1">
@@ -393,34 +481,18 @@ function onUpdate(val: boolean) {
             封面图片
           </Label>
           <div class="flex-1 space-y-2">
-            <input
-              ref="fileInputRef"
-              type="file"
-              accept="image/*"
-              class="hidden"
-              @change="handleFileSelect"
-            >
+            <input ref="fileInputRef" type="file" accept="image/*" class="hidden" @change="handleFileSelect">
             <div v-if="form.thumbPreview" class="relative inline-block">
-              <img
-                :src="form.thumbPreview"
-                alt="封面预览"
-                class="w-32 h-32 object-cover rounded border"
-              >
+              <img :src="form.thumbPreview" alt="封面预览" class="w-32 h-32 object-cover rounded border">
               <button
                 type="button"
                 class="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-gray-800 hover:bg-gray-700 text-white flex items-center justify-center"
-                :disabled="publishing"
-                @click="removeThumb"
+                :disabled="publishing" @click="removeThumb"
               >
                 <X class="w-4 h-4" />
               </button>
             </div>
-            <Button
-              v-else
-              variant="outline"
-              :disabled="publishing"
-              @click="triggerFileUpload"
-            >
+            <Button v-else variant="outline" :disabled="publishing" @click="triggerFileUpload">
               <Upload class="mr-2 h-4 w-4" />
               上传封面（≤10MB）
             </Button>
@@ -437,30 +509,19 @@ function onUpdate(val: boolean) {
           </Label>
           <div class="flex items-center gap-2">
             <CheckboxRoot
-              id="publishToOfficial"
-              v-model:checked="publishToOfficialChecked"
-              :disabled="publishing"
+              id="publishToOfficial" v-model:checked="publishToOfficialChecked" :disabled="publishing"
               class="bg-background hover:bg-muted h-5 w-5 flex items-center justify-center border border-gray-300 rounded"
             >
               <CheckboxIndicator class="text-primary">
                 <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="3"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  class="h-4 w-4"
+                  xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                  stroke-width="3" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4"
                 >
                   <polyline points="20 6 9 17 4 12" />
                 </svg>
               </CheckboxIndicator>
             </CheckboxRoot>
-            <label
-              for="publishToOfficial"
-              class="text-sm font-medium leading-none cursor-pointer select-none"
-            >
+            <label for="publishToOfficial" class="text-sm font-medium leading-none cursor-pointer select-none">
               直接发布到公众号（不勾选则仅保存为草稿，个人账号无发布接口权限）
             </label>
           </div>
