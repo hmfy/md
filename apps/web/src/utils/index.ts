@@ -224,12 +224,18 @@ export function solveWeChatImage() {
   const images = clipboardDiv.getElementsByTagName(`img`)
 
   Array.from(images).forEach((image) => {
-    const width = image.getAttribute(`width`)!
-    const height = image.getAttribute(`height`)!
-    image.removeAttribute(`width`)
-    image.removeAttribute(`height`)
-    image.style.width = width
-    image.style.height = height
+    const width = image.getAttribute(`width`)
+    const height = image.getAttribute(`height`)
+
+    // 只有当属性存在时才进行转换
+    if (width) {
+      image.removeAttribute(`width`)
+      image.style.width = width
+    }
+    if (height) {
+      image.removeAttribute(`height`)
+      image.style.height = height
+    }
   })
 }
 
