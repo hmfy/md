@@ -3,6 +3,11 @@ import type { ReadTimeResults } from 'reading-time'
 import DOMPurify from 'isomorphic-dompurify'
 import { marked } from 'marked'
 
+const sanitizeOptions = {
+  ADD_TAGS: [`mp-common-profile`],
+  ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto|tel|callto|sms|cid|xmpp|blob):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i,
+}
+
 /**
  * 渲染 Markdown 内容
  * @param raw - 原始 markdown 字符串
@@ -18,7 +23,7 @@ export function renderMarkdown(raw: string, renderer: RendererAPI) {
   let html = marked.parse(markdownContent) as string
 
   // XSS 处理
-  html = DOMPurify.sanitize(html, { ADD_TAGS: [`mp-common-profile`] })
+  html = DOMPurify.sanitize(html, sanitizeOptions)
 
   return { html, readingTime }
 }
@@ -81,8 +86,6 @@ export function modifyHtmlContent(content: string, renderer: RendererAPI): strin
   } = renderer.parseFrontMatterAndContent(content)
 
   let html = marked.parse(markdownContent) as string
-  html = DOMPurify.sanitize(html, {
-    ADD_TAGS: [`mp-common-profile`],
-  })
+  html = DOMPurify.sanitize(html, sanitizeOptions)
   return postProcessHtml(html, readingTimeResult, renderer)
 }
