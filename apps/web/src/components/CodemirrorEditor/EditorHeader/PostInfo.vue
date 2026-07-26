@@ -225,7 +225,8 @@ async function processContentImages(accessToken: string, htmlContent: string): P
   let processedCount = 0
 
   // 处理每一个图片
-  for (const img of Array.from(images)) {
+  for (const [index, img] of Array.from(images).entries()) {
+    const imageNumber = index + 1
     const src = img.getAttribute(`src`)
 
     if (!src) {
@@ -245,7 +246,7 @@ async function processContentImages(accessToken: string, htmlContent: string): P
 
       // 验证图片大小（微信要求小于1MB）
       if (imageFile.size > 1024 * 1024) {
-        console.warn(`图片 ${src} 大小超过1MB (${(imageFile.size / 1024 / 1024).toFixed(2)}MB)，可能上传失败`)
+        throw new Error(`第 ${imageNumber} 张正文图片超过 1MB（${(imageFile.size / 1024 / 1024).toFixed(2)}MB），微信图文正文图片必须小于 1MB，请压缩后重试。`)
       }
 
       // 上传到微信
@@ -258,9 +259,13 @@ async function processContentImages(accessToken: string, htmlContent: string): P
       publishMessage.value = `正在处理图片 (${processedCount}/${images.length})...`
     }
     catch (error: any) {
+      if (error?.message?.includes(`正文图片超过 1MB`)) {
+        throw error
+      }
+
       console.error(`处理图片失败 (${src}):`, error)
       // 继续处理其他图片，但记录错误
-      toast.warning(`图片 ${src.substring(0, 50)}... 上传失败，将保留原链接`)
+      toast.warning(`第 ${imageNumber} 张图片 ${src.substring(0, 50)}... 上传失败，将保留原链接`)
       processedCount++
     }
   }
