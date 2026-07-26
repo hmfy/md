@@ -432,11 +432,12 @@ function onUpdate(val: boolean) {
 <template>
   <Dialog v-model:open="dialogVisible" @update:open="onUpdate">
     <DialogTrigger>
-      <Button v-if="!store.isMobile" variant="outline" @click="prePost">
-        发布到微信
+      <Button variant="outline" class="px-2 md:px-4" @click="prePost">
+        <span class="hidden sm:inline">发布到微信</span>
+        <span class="sm:hidden">发布</span>
       </Button>
     </DialogTrigger>
-    <DialogContent class="max-w-3xl max-h-[95vh] overflow-y-auto">
+    <DialogContent class="w-[calc(100vw-1rem)] max-w-3xl max-h-[92dvh] overflow-y-auto p-4 sm:p-6">
       <DialogHeader>
         <DialogTitle>发布到微信公众号</DialogTitle>
       </DialogHeader>
@@ -460,16 +461,16 @@ function onUpdate(val: boolean) {
 
       <div class="space-y-4">
         <!-- AppID -->
-        <div class="w-full flex items-center gap-4">
-          <Label for="appId" class="w-24 text-end shrink-0">
+        <div class="w-full flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
+          <Label for="appId" class="sm:w-24 sm:text-end shrink-0">
             AppID
           </Label>
           <Input id="appId" v-model="form.appId" placeholder="请输入公众号 AppID" :disabled="publishing" />
         </div>
 
         <!-- AppSecret -->
-        <div class="w-full flex items-center gap-4">
-          <Label for="appSecret" class="w-24 text-end shrink-0">
+        <div class="w-full flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
+          <Label for="appSecret" class="sm:w-24 sm:text-end shrink-0">
             AppSecret
           </Label>
           <Input
@@ -481,27 +482,27 @@ function onUpdate(val: boolean) {
         <Separator />
 
         <!-- 标题 -->
-        <div class="w-full flex items-center gap-4">
-          <Label for="title" class="w-24 text-end shrink-0">
+        <div class="w-full flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
+          <Label for="title" class="sm:w-24 sm:text-end shrink-0">
             标题
           </Label>
           <Input id="title" v-model="form.title" placeholder="自动提取第一个标题" :disabled="publishing" />
         </div>
 
         <!-- 作者 -->
-        <div class="w-full flex items-center gap-4">
-          <Label for="author" class="w-24 text-end shrink-0">
+        <div class="w-full flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
+          <Label for="author" class="sm:w-24 sm:text-end shrink-0">
             作者
           </Label>
           <Input id="author" v-model="form.author" placeholder="可选" :disabled="publishing" />
         </div>
 
         <!-- 描述 -->
-        <div class="w-full flex items-start gap-4">
-          <Label for="desc" class="w-24 text-end shrink-0 pt-2">
+        <div class="w-full flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-4">
+          <Label for="desc" class="sm:w-24 sm:text-end shrink-0 sm:pt-2">
             摘要
           </Label>
-          <div class="flex-1">
+          <div class="w-full sm:flex-1">
             <Textarea
               id="desc" v-model="form.desc" placeholder="自动提取第一个段落（最多50字）" rows="3" :disabled="publishing"
               maxlength="50"
@@ -513,11 +514,11 @@ function onUpdate(val: boolean) {
         </div>
 
         <!-- 封面上传 -->
-        <div class="w-full flex items-start gap-4">
-          <Label class="w-24 text-end shrink-0 pt-2">
+        <div class="w-full flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-4">
+          <Label class="sm:w-24 sm:text-end shrink-0 sm:pt-2">
             封面图片
           </Label>
-          <div class="flex-1 space-y-2">
+          <div class="w-full sm:flex-1 space-y-2">
             <input ref="fileInputRef" type="file" accept="image/*" class="hidden" @change="handleFileSelect">
             <div v-if="form.thumbPreview" class="relative inline-block">
               <img :src="form.thumbPreview" alt="封面预览" class="w-32 h-32 object-cover rounded border">
@@ -540,14 +541,14 @@ function onUpdate(val: boolean) {
         </div>
 
         <!-- 发布到公众号选项 -->
-        <div class="w-full flex items-center gap-4">
-          <Label class="w-24 text-end shrink-0">
+        <div class="w-full flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
+          <Label class="sm:w-24 sm:text-end shrink-0">
             发布选项
           </Label>
-          <div class="flex items-center gap-2">
+          <div class="flex items-start gap-2 sm:items-center">
             <CheckboxRoot
               id="publishToOfficial" v-model:checked="publishToOfficialChecked" :disabled="publishing"
-              class="bg-background hover:bg-muted h-5 w-5 flex items-center justify-center border border-gray-300 rounded"
+              class="bg-background hover:bg-muted h-5 w-5 flex shrink-0 items-center justify-center border border-gray-300 rounded"
             >
               <CheckboxIndicator class="text-primary">
                 <svg
@@ -558,18 +559,18 @@ function onUpdate(val: boolean) {
                 </svg>
               </CheckboxIndicator>
             </CheckboxRoot>
-            <label for="publishToOfficial" class="text-sm font-medium leading-none cursor-pointer select-none">
+            <label for="publishToOfficial" class="text-sm font-medium leading-snug cursor-pointer select-none">
               直接发布到公众号（不勾选则仅保存为草稿，个人账号无发布接口权限）
             </label>
           </div>
         </div>
       </div>
 
-      <DialogFooter class="gap-2">
-        <Button variant="outline" :disabled="publishing" @click="dialogVisible = false">
+      <DialogFooter class="gap-2 sm:gap-2">
+        <Button variant="outline" class="w-full sm:w-auto" :disabled="publishing" @click="dialogVisible = false">
           取 消
         </Button>
-        <Button :disabled="!allowPublish" @click="publish">
+        <Button class="w-full sm:w-auto" :disabled="!allowPublish" @click="publish">
           {{ publishing ? '发布中...' : '发布' }}
         </Button>
       </DialogFooter>

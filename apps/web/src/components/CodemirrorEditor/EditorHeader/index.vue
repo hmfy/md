@@ -179,8 +179,8 @@ async function copy() {
         </DropdownMenu>
       </div>
 
-      <!-- 文章信息（移动端隐藏） -->
-      <PostInfo class="hidden md:inline-flex" />
+      <!-- 文章信息 -->
+      <PostInfo />
 
       <!-- 设置按钮 -->
       <Button
