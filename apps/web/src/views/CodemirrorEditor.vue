@@ -32,6 +32,7 @@ const backLight = ref(false)
 const isCoping = ref(false)
 const WECHAT_CONTENT_IMAGE_MAX_SIZE = 1024 * 1024
 const PASTE_IMAGE_COMPRESS_THRESHOLD = WECHAT_CONTENT_IMAGE_MAX_SIZE * 0.9
+const WECHAT_CONTENT_IMAGE_TYPES = [`image/jpeg`, `image/png`]
 
 function startCopy() {
   backLight.value = true
@@ -224,6 +225,34 @@ async function compressImage(file: File) {
   const compressedFile = await imageCompression(file, options)
   return compressedFile
 }
+
+function getImageNameWithoutExt(file: File) {
+  return file.name.replace(/\.[^.]+$/, ``) || `image_${Date.now()}`
+}
+
+async function normalizePastedImageForWechat(file: File) {
+  const needsConversion = !WECHAT_CONTENT_IMAGE_TYPES.includes(file.type)
+  const needsCompression = file.size >= PASTE_IMAGE_COMPRESS_THRESHOLD
+
+  if (!needsConversion && !needsCompression) {
+    return file
+  }
+
+  const compressedFile = await imageCompression(file, {
+    maxSizeMB: 1,
+    maxWidthOrHeight: 1920,
+    useWebWorker: true,
+    fileType: `image/jpeg`,
+    initialQuality: 0.9,
+  })
+
+  return new File(
+    [compressedFile],
+    `${getImageNameWithoutExt(file)}.jpg`,
+    { type: `image/jpeg` },
+  )
+}
+
 async function uploadImage(
   file: File,
   cb?: { (url: any, data: string): void, (arg0: unknown): void } | undefined,
@@ -259,9 +288,7 @@ async function uploadImage(
 async function pasteImage(file: File) {
   try {
     isImgLoading.value = true
-    if (file.size >= PASTE_IMAGE_COMPRESS_THRESHOLD) {
-      file = await compressImage(file)
-    }
+    file = await normalizePastedImageForWechat(file)
 
     if (file.size > WECHAT_CONTENT_IMAGE_MAX_SIZE) {
       toast.error(`图片压缩后仍超过 1MB，请裁剪或压缩后再粘贴`)

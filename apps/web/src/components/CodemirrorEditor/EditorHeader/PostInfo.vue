@@ -166,7 +166,7 @@ async function uploadMaterial(accessToken: string, file: File): Promise<string> 
 // 上传图文消息内的图片（不占用素材库）
 async function uploadContentImage(accessToken: string, file: File): Promise<string> {
   const formData = new FormData()
-  formData.append(`media`, file)
+  formData.append(`media`, file, file.name)
 
   const response = await fetch(
     `/wechat/cgi-bin/media/uploadimg?access_token=${accessToken}`,
@@ -183,6 +183,22 @@ async function uploadContentImage(accessToken: string, file: File): Promise<stri
   }
 
   return data.url
+}
+
+function normalizeWechatContentImageFile(file: File, imageNumber: number) {
+  const typeToExt: Record<string, string> = {
+    'image/jpeg': `jpg`,
+    'image/jpg': `jpg`,
+    'image/png': `png`,
+  }
+  const ext = typeToExt[file.type]
+
+  if (!ext) {
+    throw new Error(`第 ${imageNumber} 张正文图片类型不支持（${file.type || file.name || `未知类型`}），微信正文图片仅支持 JPG/PNG，请转换后重试。`)
+  }
+
+  const filename = file.name.replace(/\.[^.]+$/, ``) || `image_${Date.now()}`
+  return new File([file], `${filename}.${ext}`, { type: file.type })
 }
 
 // 从URL下载图片并转换为File对象
@@ -255,7 +271,10 @@ async function processContentImages(accessToken: string, htmlContent: string): P
 
     try {
       // 下载图片
-      const imageFile = await downloadImageAsFile(src)
+      const imageFile = normalizeWechatContentImageFile(
+        await downloadImageAsFile(src),
+        imageNumber,
+      )
 
       // 验证图片大小（微信要求小于1MB）
       if (imageFile.size > 1024 * 1024) {
@@ -272,7 +291,7 @@ async function processContentImages(accessToken: string, htmlContent: string): P
       publishMessage.value = `正在处理图片 (${processedCount}/${images.length})...`
     }
     catch (error: any) {
-      if (error?.message?.includes(`正文图片超过 1MB`)) {
+      if (error?.message?.includes(`正文图片`)) {
         throw error
       }
 
