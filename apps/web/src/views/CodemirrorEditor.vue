@@ -172,6 +172,16 @@ function beforeUpload(file: File) {
   return true
 }
 
+function beforePasteImage(file: File) {
+  const checkResult = checkImage(file)
+  if (!checkResult.ok) {
+    toast.error(checkResult.msg)
+    return false
+  }
+
+  return true
+}
+
 // 图片上传结束
 function uploaded(imageUrl: string) {
   if (!imageUrl) {
@@ -187,6 +197,18 @@ function uploaded(imageUrl: string) {
   // 将 Markdown 形式的 URL 插入编辑框光标所在位置
   toRaw(store.editor!).replaceSelection(`\n${markdownImage}\n`, cursor as any)
   toast.success(`图片上传成功`)
+}
+
+function insertPastedImage(imageUrl: string) {
+  if (!imageUrl) {
+    toast.error(`插入图片未知异常`)
+    return
+  }
+
+  const cursor = editor.value!.getCursor()
+  const markdownImage = `![](${imageUrl})`
+  toRaw(store.editor!).replaceSelection(`\n${markdownImage}\n`, cursor as any)
+  toast.success(`图片已插入，发布时将上传到微信`)
 }
 
 const isImgLoading = ref(false)
@@ -222,6 +244,25 @@ async function uploadImage(
     if (applyUrl) {
       return uploaded(url)
     }
+  }
+  catch (err) {
+    toast.error((err as any).message)
+  }
+  finally {
+    isImgLoading.value = false
+  }
+}
+
+async function pasteImage(file: File) {
+  try {
+    isImgLoading.value = true
+    const useCompression = localStorage.getItem(`useCompression`) === `true`
+    if (useCompression) {
+      file = await compressImage(file)
+    }
+
+    const base64Content = await toBase64(file)
+    insertPastedImage(`data:${file.type};base64,${base64Content}`)
   }
   catch (err) {
     toast.error((err as any).message)
@@ -380,7 +421,7 @@ function createFormTextArea(dom: HTMLTextAreaElement) {
     if (!(event.clipboardData?.items) || isImgLoading.value) {
       return
     }
-    const items = [...event.clipboardData.items].map(item => item.getAsFile()).filter(item => item != null && beforeUpload(item)) as File[]
+    const items = [...event.clipboardData.items].map(item => item.getAsFile()).filter(item => item != null && beforePasteImage(item)) as File[]
     // 即使return了，粘贴的文本内容也会被插入
     if (items.length === 0) {
       return
@@ -395,7 +436,7 @@ function createFormTextArea(dom: HTMLTextAreaElement) {
     }, 100)
     for (const item of items) {
       event.preventDefault()
-      await uploadImage(item)
+      await pasteImage(item)
     }
     const cleanup = () => {
       clearInterval(intervalId)

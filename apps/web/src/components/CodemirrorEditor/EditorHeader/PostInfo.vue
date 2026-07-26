@@ -193,6 +193,11 @@ async function downloadImageAsFile(url: string): Promise<File> {
 
   const blob = await response.blob()
 
+  if (url.startsWith(`data:`)) {
+    const ext = blob.type.split(`/`)[1] || `jpg`
+    return new File([blob], `image_${Date.now()}.${ext}`, { type: blob.type })
+  }
+
   // 从URL中提取文件名，如果没有则使用时间戳
   const urlParts = url.split(`/`)
   let filename = urlParts[urlParts.length - 1].split(`?`)[0] || `image_${Date.now()}.jpg`
