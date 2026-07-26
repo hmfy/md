@@ -18,6 +18,7 @@ import { SearchTab } from '@/components/ui/search-tab'
 import { checkImage, toBase64 } from '@/utils'
 import { createExtraKeys } from '@/utils/editor'
 import { fileUpload } from '@/utils/file'
+import { createPastedImageUrl } from '@/utils/pastedImages'
 
 const store = useStore()
 const displayStore = useDisplayStore()
@@ -29,6 +30,8 @@ const { toggleShowUploadImgDialog } = displayStore
 
 const backLight = ref(false)
 const isCoping = ref(false)
+const WECHAT_CONTENT_IMAGE_MAX_SIZE = 1024 * 1024
+const PASTE_IMAGE_COMPRESS_THRESHOLD = WECHAT_CONTENT_IMAGE_MAX_SIZE * 0.9
 
 function startCopy() {
   backLight.value = true
@@ -256,13 +259,16 @@ async function uploadImage(
 async function pasteImage(file: File) {
   try {
     isImgLoading.value = true
-    const useCompression = localStorage.getItem(`useCompression`) === `true`
-    if (useCompression) {
+    if (file.size >= PASTE_IMAGE_COMPRESS_THRESHOLD) {
       file = await compressImage(file)
     }
 
-    const base64Content = await toBase64(file)
-    insertPastedImage(`data:${file.type};base64,${base64Content}`)
+    if (file.size > WECHAT_CONTENT_IMAGE_MAX_SIZE) {
+      toast.error(`图片压缩后仍超过 1MB，请裁剪或压缩后再粘贴`)
+      return
+    }
+
+    insertPastedImage(createPastedImageUrl(file))
   }
   catch (err) {
     toast.error((err as any).message)

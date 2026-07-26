@@ -4,6 +4,7 @@ import { CheckboxIndicator, CheckboxRoot } from 'radix-vue'
 import { toast } from 'vue-sonner'
 import { useStore } from '@/stores'
 import { addPrefix, processClipboardContent } from '@/utils'
+import { getPastedImageFile } from '@/utils/pastedImages'
 
 const store = useStore()
 const { output, primaryColor } = storeToRefs(store)
@@ -186,6 +187,13 @@ async function uploadContentImage(accessToken: string, file: File): Promise<stri
 
 // 从URL下载图片并转换为File对象
 async function downloadImageAsFile(url: string): Promise<File> {
+  if (url.startsWith(`blob:`)) {
+    const pastedFile = getPastedImageFile(url)
+    if (pastedFile) {
+      return pastedFile
+    }
+  }
+
   const response = await fetch(url)
   if (!response.ok) {
     throw new Error(`下载图片失败: ${response.statusText}`)
